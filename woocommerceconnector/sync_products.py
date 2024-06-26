@@ -471,11 +471,13 @@ def sync_item_with_woocommerce(item, price_list, warehouse, woocommerce_item=Non
     variant_item_name_list = []
     variant_list = []
     item_data = {
+            "sku": item.get("item_code"),
             "name": item.get("item_name"),
             "description": item.get("woocommerce_description") or item.get("web_long_description") or item.get("description"),
             "short_description": item.get("description") or item.get("web_long_description") or item.get("woocommerce_description"),
     }
     item_data.update( get_price_and_stock_details(item, warehouse, price_list) )
+    item_data["categories"] = get_product_categories(item.get("name"), item.get("item_group"))
 
     if item.get("has_variants"):  # we are dealing a variable product
         item_data["type"] = "variable"
@@ -494,7 +496,7 @@ def sync_item_with_woocommerce(item, price_list, warehouse, woocommerce_item=Non
     erp_item.flags.ignore_mandatory = True
 
     if not item.get("woocommerce_product_id"):
-        item_data["status"] = "draft"
+        item_data["status"] = "publish"
 
         create_new_item_to_woocommerce(item, item_data, erp_item, variant_item_name_list)
 
@@ -536,7 +538,66 @@ def sync_item_with_woocommerce(item, price_list, warehouse, woocommerce_item=Non
             sync_item_image(erp_item)
 
     frappe.db.commit()
-
+    
+def get_product_categories(item_code="KIT-4CYL", item_group="Conversion Kit"):
+    ret_categories = []
+    categories = frappe.db.sql("""SELECT category, woocommerce_id, name
+                                    FROM `tabItem Product Category` WHERE `parent` = %(item_code)s""",
+                               {"item_code": item_code}, as_dict=1)
+    if len(categories) == 0:
+        category_id = None
+        exists = frappe.db.exists("Woocommerce Product Category", {"category": item_group})
+        if exists:
+            woocommerce_category = frappe.get_doc("Woocommerce Product Category", exists)
+            if woocommerce_category.woocommerce_id is not None and woocommerce_category.woocommerce_id != '':
+                category_id = woocommerce_category.woocommerce_id
+            else:
+                new_category = post_request("products/categories", {"name": item_group})
+                if new_category.get('id'):
+                    frappe.db.set_value("Woocommerce Product Category", exists, "woocommerce_id", new_category.get('id'))
+                    category_id = new_category.get('id')
+        else:
+            new_doc = frappe.new_doc("Woocommerce Product Category")
+            new_doc.category = item_group
+            new_category = post_request("products/categories", {"name": item_group})
+            if new_category.get('id'):
+                new_doc.woocommerce_id = new_category.get('id')
+            new_doc.insert()
+                    
+        new_category = post_request("products/categories", {"name": item_group})
+        if new_category.get("id"):
+            category_id = new_category.get("id")
+        elif new_category.get("code") == "term_exists":
+            category_id = new_category.get("data").get("resource_id")
+            
+        if category_id:
+            doc = frappe.new_doc("Item Product Category")
+            doc.update({
+                "parent": item_code,
+                "parenttype": "Item",
+                "parentfield": "product_category",
+                "category": item_group, 
+                "woocommerce_id": category_id
+            })
+            doc.save()
+            ret_categories.append({"id": category_id})
+            
+    for category in categories:
+        if category.woocommerce_id is None or category.woocommerce_id == '':
+            new_category = post_request("products/categories", {"name": category['category']})
+            
+            category_id = None
+            if new_category.get("id"):
+                category_id = new_category.get("id")
+            elif new_category.get("code") == "term_exists":
+                category_id = new_category.get("data").get("resource_id")
+                
+            if category_id:
+                frappe.db.set_value("Item Product Category", category.name, "woocommerce_id", category_id)
+                ret_categories.append({"id": category_id})
+        else:
+            ret_categories.append({"id":category['woocommerce_id']})
+    return ret_categories
 
 def create_new_item_to_woocommerce(item, item_data, erp_item, variant_item_name_list):
     new_item = post_request("products", item_data)
@@ -804,13 +865,16 @@ def add_w_id_to_erp():
             SET `woocommerce_product_id` = NULL, `woocommerce_variant_id` = NULL;"""
     frappe.db.sql(purge_ids)
     frappe.db.commit()
+    print("before woo")
 
     # loop through all items on WooCommerce and get their IDs (matched by barcode)
-    woo_items = get_woocommerce_items()
+    woo_items = get_woocommerce_items(True)
+    print(woo_items)
     make_woocommerce_log(title="Syncing IDs", status="Started", method="add_w_id_to_erp", message='Item: {0}'.format(woo_items),
         request_data={}, exception=True)
     for woocommerce_item in woo_items:
-        update_item = """UPDATE `tabItem`
+        print({"item": woocommerce_item.get("sku")})
+        '''update_item = """UPDATE `tabItem`
             SET `woocommerce_product_id` = '{0}'
             WHERE `barcode` = '{1}';""".format(woocommerce_item.get("id"), woocommerce_item.get("sku"))
         frappe.db.sql(update_item)
@@ -819,6 +883,19 @@ def add_w_id_to_erp():
             update_variant = """UPDATE `tabItem`
                 SET `woocommerce_variant_id` = '{0}', `woocommerce_product_id` = '{1}'
                 WHERE `barcode` = '{2}';""".format(woocommerce_variant.get("id"), woocommerce_item.get("id"), woocommerce_variant.get("sku"))
+            frappe.db.sql(update_variant)
+            frappe.db.commit()'''
+            
+		# Update based on item code
+        update_item = """UPDATE `tabItem`
+            SET `woocommerce_product_id` = '{0}'
+            WHERE `item_code` = '{1}';""".format(woocommerce_item.get("id"), woocommerce_item.get("sku"))
+        frappe.db.sql(update_item)
+        frappe.db.commit()
+        for woocommerce_variant in get_woocommerce_item_variants(woocommerce_item.get("id")):
+            update_variant = """UPDATE `tabItem`
+                SET `woocommerce_variant_id` = '{0}', `woocommerce_product_id` = '{1}'
+                WHERE `item_code` = '{2}';""".format(woocommerce_variant.get("id"), woocommerce_item.get("id"), woocommerce_variant.get("sku"))
             frappe.db.sql(update_variant)
             frappe.db.commit()
     make_woocommerce_log(title="IDs synced", status="Success", method="add_w_id_to_erp", message={},

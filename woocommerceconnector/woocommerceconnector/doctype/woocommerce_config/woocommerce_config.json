@@ -1,4 +1,5 @@
 {
+ "actions": [],
  "creation": "2015-05-18 05:21:07.270859",
  "doctype": "DocType",
  "document_type": "System",
@@ -21,6 +22,7 @@
   "erp_settings",
   "price_list",
   "if_not_exists_create_item_to_woocommerce",
+  "create_items_as_published",
   "sync_items_from_woocommerce_to_erp",
   "sync_only_published",
   "sync_item_qty_from_erpnext_to_woocommerce",
@@ -400,10 +402,17 @@
    "fieldname": "sync_only_published",
    "fieldtype": "Check",
    "label": "Only sync published items"
+  },
+  {
+   "default": "0",
+   "fieldname": "create_items_as_published",
+   "fieldtype": "Check",
+   "label": "Create Items As Published"
   }
  ],
  "issingle": 1,
- "modified": "2022-03-18 20:36:00.328416",
+ "links": [],
+ "modified": "2024-06-19 14:21:51.954889",
  "modified_by": "Administrator",
  "module": "WooCommerceConnector",
  "name": "WooCommerce Config",

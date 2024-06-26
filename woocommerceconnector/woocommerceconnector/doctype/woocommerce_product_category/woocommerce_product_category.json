@@ -1,6 +1,8 @@
 {
  "actions": [],
- "creation": "2020-08-20 09:46:47.673274",
+ "allow_rename": 1,
+ "autoname": "field:category",
+ "creation": "2024-06-26 23:34:22.777940",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -11,28 +13,37 @@
  "fields": [
   {
    "fieldname": "category",
-   "fieldtype": "Link",
-   "in_list_view": 1,
+   "fieldtype": "Data",
    "label": "Category",
-   "options": "Woocommerce Product Category"
+   "unique": 1
   },
   {
-   "fetch_from": "category.woocommerce_id",
    "fieldname": "woocommerce_id",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Woocommerce ID"
   }
  ],
- "istable": 1,
+ "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-06-26 23:34:45.972978",
+ "modified": "2024-06-26 23:34:37.773418",
  "modified_by": "Administrator",
  "module": "WooCommerceConnector",
- "name": "Item Product Category",
+ "name": "Woocommerce Product Category",
  "owner": "Administrator",
- "permissions": [],
- "quick_entry": 1,
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
  "sort_field": "modified",
  "sort_order": "DESC",
  "track_changes": 1
