@@ -539,36 +539,15 @@ def sync_item_with_woocommerce(item, price_list, warehouse, woocommerce_item=Non
 
     frappe.db.commit()
     
-def get_product_categories(item_code="KIT-4CYL", item_group="Conversion Kit"):
+def get_product_categories(item_code, item_group):
     ret_categories = []
     categories = frappe.db.sql("""SELECT category, woocommerce_id, name
                                     FROM `tabItem Product Category` WHERE `parent` = %(item_code)s""",
                                {"item_code": item_code}, as_dict=1)
     if len(categories) == 0:
         category_id = None
-        exists = frappe.db.exists("Woocommerce Product Category", {"category": item_group})
-        if exists:
-            woocommerce_category = frappe.get_doc("Woocommerce Product Category", exists)
-            if woocommerce_category.woocommerce_id is not None and woocommerce_category.woocommerce_id != '':
-                category_id = woocommerce_category.woocommerce_id
-            else:
-                new_category = post_request("products/categories", {"name": item_group})
-                if new_category.get('id'):
-                    frappe.db.set_value("Woocommerce Product Category", exists, "woocommerce_id", new_category.get('id'))
-                    category_id = new_category.get('id')
-        else:
-            new_doc = frappe.new_doc("Woocommerce Product Category")
-            new_doc.category = item_group
-            new_category = post_request("products/categories", {"name": item_group})
-            if new_category.get('id'):
-                new_doc.woocommerce_id = new_category.get('id')
-            new_doc.insert()
-                    
-        new_category = post_request("products/categories", {"name": item_group})
-        if new_category.get("id"):
-            category_id = new_category.get("id")
-        elif new_category.get("code") == "term_exists":
-            category_id = new_category.get("data").get("resource_id")
+        woocomerce_category = create_product_category(item_group)
+        category_id = woocomerce_category.woocommerce_id
             
         if category_id:
             doc = frappe.new_doc("Item Product Category")
@@ -581,23 +560,48 @@ def get_product_categories(item_code="KIT-4CYL", item_group="Conversion Kit"):
             })
             doc.save()
             ret_categories.append({"id": category_id})
-            
-    for category in categories:
-        if category.woocommerce_id is None or category.woocommerce_id == '':
-            new_category = post_request("products/categories", {"name": category['category']})
-            
-            category_id = None
-            if new_category.get("id"):
-                category_id = new_category.get("id")
-            elif new_category.get("code") == "term_exists":
-                category_id = new_category.get("data").get("resource_id")
-                
-            if category_id:
-                frappe.db.set_value("Item Product Category", category.name, "woocommerce_id", category_id)
-                ret_categories.append({"id": category_id})
-        else:
-            ret_categories.append({"id":category['woocommerce_id']})
+    else:        
+        for category in categories:
+            if category.woocommerce_id is None or category.woocommerce_id == '':
+                woocomerce_category = create_product_category(category['category'])
+                category_id = woocomerce_category.woocommerce_id
+                if category_id:
+                    doc = frappe.get_doc("Item Product Category", category.name)
+                    doc.woocommerce_id = category_id
+                    doc.save()
+                    ret_categories.append({"id": category_id})
+            else:
+                ret_categories.append({"id":category['woocommerce_id']})
     return ret_categories
+
+def create_product_category(item_group):
+    woocommerce_category = None
+    exists = frappe.db.exists("Woocommerce Product Category", {"category": item_group})
+    if exists:
+        woocommerce_category = frappe.get_doc("Woocommerce Product Category", exists)
+        if woocommerce_category.woocommerce_id is not None and woocommerce_category.woocommerce_id != '':
+            return woocommerce_category
+        else:
+            category_id = None
+            new_category = post_request("products/categories", {"name": item_group})
+            if new_category.get('id'):
+                category_id = new_category.get('id')
+            elif new_category.get('code') == 'term_exists':
+                category_id = new_category.get('data').get('resource_id')
+            woocommerce_category.woocommerce_id = category_id
+            woocommerce_category.save()
+    else:
+        woocommerce_category = frappe.new_doc("Woocommerce Product Category")
+        woocommerce_category.category = item_group
+        new_category = post_request("products/categories", {"name": item_group})
+        if new_category.get('id'):
+            category_id = new_category.get('id')
+            woocommerce_category.woocommerce_id = new_category.get('id')
+        elif new_category.get('code') == 'term_exists':
+            category_id = new_category.get('data').get('resource_id')
+            woocommerce_category.woocommerce_id = new_category.get('data').get('resource_id')
+        woocommerce_category.insert()
+    return woocommerce_category
 
 def create_new_item_to_woocommerce(item, item_data, erp_item, variant_item_name_list):
     new_item = post_request("products", item_data)
