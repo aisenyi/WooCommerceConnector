@@ -418,7 +418,7 @@ def get_erpnext_items(price_list):
         last_sync_condition = "and modified >= '{0}' ".format(woocommerce_settings.last_sync_datetime)
         item_price_condition = "AND `tabItem Price`.`modified` >= '{0}' ".format(woocommerce_settings.last_sync_datetime)
 
-    item_from_master = """select name, item_code, item_name, item_group,
+    '''item_from_master = """select name, item_code, item_name, item_group,
         description, woocommerce_description, has_variants, variant_of, stock_uom, image, woocommerce_product_id,
         woocommerce_variant_id, sync_qty_with_woocommerce, weight_per_unit, weight_uom from tabItem
         where sync_with_woocommerce=1 and (variant_of is null or variant_of = '')
@@ -435,7 +435,7 @@ def get_erpnext_items(price_list):
             template_items[i] = template_items[i].replace("'", r"\'")
         # combine condition
         item_price_condition += ' AND `tabItem`.`variant_of` NOT IN (\'{0}\')'.format(
-            ("' ,'".join(template_items)))
+            ("' ,'".join(template_items)))'''
     
     item_from_item_price = """SELECT `tabItem`.`name`, 
                                      `tabItem`.`item_code`, 
@@ -452,11 +452,16 @@ def get_erpnext_items(price_list):
                                      `tabItem`.`sync_qty_with_woocommerce`, 
                                      `tabItem`.`weight_per_unit`, 
                                      `tabItem`.`weight_uom`
-        FROM `tabItem`, `tabItem Price`
-        WHERE `tabItem Price`.`price_list` = '%s' 
-          AND `tabItem`.`name` = `tabItem Price`.`item_code`
-          AND `tabItem`.`sync_with_woocommerce` = 1 
-          AND (`tabItem`.`disabled` IS NULL OR `tabItem`.`disabled` = 0) %s""" %(price_list, item_price_condition)
+                            FROM 
+                                `tabItem Price` 
+                            LEFT JOIN 
+                                `tabItem` ON `tabItem`.name = `tabItem Price`.item_code
+                            WHERE 
+                                 `tabItem Price`.`price_list` = '%s' 
+                                 AND `tabItem Price`.`price_list_rate` > 0
+                                 AND `tabItem`.`name` = `tabItem Price`.`item_code`
+                                 AND `tabItem`.`sync_with_woocommerce` = 1 
+        AND (`tabItem`.`disabled` IS NULL OR `tabItem`.`disabled` = 0) %s""" %(price_list, item_price_condition)
     frappe.log_error("{0}".format(item_from_item_price))
 
 
