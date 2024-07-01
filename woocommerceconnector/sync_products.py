@@ -796,7 +796,7 @@ def trigger_update_item_stock(doc, method):
 
 def update_item_stock_qty(force=False):
     woocommerce_settings = frappe.get_doc("WooCommerce Config", "WooCommerce Config")
-    for item in frappe.get_all("Item", fields=["item_code"], filters={"sync_qty_with_woocommerce": '1', "disabled": ("!=", 1)}):
+    for item in frappe.get_all("Item", fields=["item_code"], filters={"sync_qty_with_woocommerce": '1', "sync_with_woocommerce": 1, "disabled": ("!=", 1)}):
         try:
             update_item_stock(item.item_code, woocommerce_settings, force=force)
         except woocommerceError as e:
